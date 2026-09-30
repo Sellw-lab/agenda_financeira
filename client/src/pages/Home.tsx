@@ -64,6 +64,8 @@ function initials(name?: string | null) {
   return (name || "Você").split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
+const logoUrl = `${import.meta.env.BASE_URL}bolso-claro-logo.svg`;
+
 type View = "overview" | "transactions" | "settings";
 
 type EditItem = {
@@ -160,7 +162,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className={`sidebar ${showMobileMenu ? "sidebar-open" : ""}`}>
         <div className="brand-lockup">
-          <img src="/bolso-claro-logo.svg" alt="" className="brand-mark" />
+          <img src={logoUrl} alt="" className="brand-mark" />
           <div>
             <p className="brand-name">Bolso Claro</p>
             <p className="brand-caption">agenda financeira</p>
@@ -302,4 +304,4 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 
 function LoadingScreen() { return <div className="center-screen"><Loader2 className="spin" size={28} /><span>abrindo seu espaço financeiro…</span></div>; }
 function LocalModeUnavailable() { return <div className="center-screen"><Loader2 className="spin" size={28} /><span>iniciando sua agenda local…</span><small>Verifique se o servidor foi iniciado com <code>pnpm dev:local</code>.</small></div>; }
-function LoginScreen() { return <div className="login-screen"><div className="login-card"><img src="/bolso-claro-logo.svg" alt="Bolso Claro" className="login-logo" /><p className="eyebrow">sua agenda financeira</p><h1>Entenda seu dinheiro<br /><em>sem complicar.</em></h1><p className="login-copy">Registre seus gastos do jeito que você fala e veja tudo tomar forma.</p><Button onClick={() => startLogin()} className="primary-button login-button">entrar na minha agenda <ChevronRight size={17} /></Button><p className="login-footnote">Acesso seguro pela sua conta Manus.</p></div><div className="login-decoration"><div className="deco-card deco-one"><span>saldo previsto</span><strong>R$ 3.240,00</strong></div><div className="deco-card deco-two"><span>gasto em comida</span><strong>R$ 487,20</strong><small>este mês</small></div></div></div>; }
+function LoginScreen() { return <div className="login-screen"><div className="login-card"><img src={logoUrl} alt="Bolso Claro" className="login-logo" /><p className="eyebrow">sua agenda financeira</p><h1>Entenda seu dinheiro<br /><em>sem complicar.</em></h1><p className="login-copy">Registre seus gastos do jeito que você fala e veja tudo tomar forma.</p><Button onClick={() => startLogin()} className="primary-button login-button">entrar na minha agenda <ChevronRight size={17} /></Button><p className="login-footnote">Acesso seguro pela sua conta Manus.</p></div><div className="login-decoration"><div className="deco-card deco-one"><span>saldo previsto</span><strong>R$ 3.240,00</strong></div><div className="deco-card deco-two"><span>gasto em comida</span><strong>R$ 487,20</strong><small>este mês</small></div></div></div>; }

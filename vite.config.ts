@@ -172,6 +172,7 @@ const plugins = [vitePluginPublicPlatformConfig(), react(), tailwindcss(), jsxLo
 
 export default defineConfig({
   plugins,
+  base: process.env.VITE_BASE_PATH ?? "/",
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
