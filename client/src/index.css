@@ -110,7 +110,7 @@ h3 { color: #29453b; }
 .balance-footer span { display: flex; align-items: center; gap: 5px; }
 .balance-footer svg { color: #bad7b8; }
 .balance-footer strong { color: #f8fbf4; font-size: 12px; }
-.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 30px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; margin: 16px 0 30px; }
 .metric-card { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 15px; background: #fffdf8; border: 1px solid #e6e9e1; border-radius: 13px; }
 .metric-icon { display: grid; place-items: center; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 9px; }
 .metric-icon.green { color: #4f8767; background: #e2f0e3; }
