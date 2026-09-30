@@ -196,3 +196,27 @@ h3 { color: #29453b; }
 @media (max-width: 860px) { .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-105%); transition: transform .2s ease; box-shadow: 20px 0 40px rgba(34, 53, 43, .14); }.sidebar.sidebar-open { transform: translateX(0); }.mobile-close { display: grid; place-items: center; margin-left: auto; width: 30px; height: 30px; color: #748079; background: transparent; border-radius: 8px; }.mobile-overlay { position: fixed; inset: 0; z-index: 40; background: rgba(21, 40, 32, .22); border: 0; }.mobile-menu-button { display: grid; }.main-area { width: 100%; padding: 20px 18px 35px; }.page-grid { grid-template-columns: 1fr; }.chat-panel { position: relative; top: auto; height: 560px; }.settings-grid { grid-template-columns: 1fr; }.row-action { opacity: 1; } }
 @media (max-width: 560px) { .topbar { margin-bottom: 22px; }.topbar-actions .notification-button { display: none; }.balance-card { padding: 20px 18px 17px; }.balance-footer { gap: 13px; flex-wrap: wrap; }.metrics-grid { gap: 7px; margin-bottom: 24px; }.metric-card { padding: 11px 9px; gap: 7px; }.metric-icon { width: 28px; height: 28px; }.metric-card p { font-size: 9px; }.metric-card strong { font-size: 11px; }.metric-card span { font-size: 8px; }.section-heading h2 { font-size: 15px; }.panel { padding-inline: 13px; }.transaction-row { gap: 7px; }.transaction-amount { font-size: 10px; }.row-action { width: 23px; }.chat-panel { height: 520px; }.chat-header { padding-inline: 14px; }.chat-body { padding: 14px; }.form-row { grid-template-columns: 1fr; }.deco-card { display: none; }.login-card h1 { font-size: 42px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Local finance enhancements */
+.month-status { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid #dce8dc; border-radius: 13px; background: #e8f2e7; }
+.month-status.negative { border-color: #f0d8cf; background: #fff0ea; }
+.month-status .info-icon { flex: 0 0 auto; }
+.month-status.positive .info-icon { color: #4b8064; background: #d4e5d3; }
+.month-status.negative .info-icon { color: #b36550; background: #f7d9ce; }
+.month-status strong { display: block; color: #476657; font-size: 12px; }
+.month-status.negative strong { color: #9d5b4a; }
+.month-status p { margin: 4px 0 0; color: #71847a; font-size: 11px; line-height: 1.45; }
+.chat-close { display: none; align-items: center; justify-content: center; width: 30px; height: 30px; color: #809089; background: transparent; border-radius: 8px; }
+.chat-fab { display: none; }
+@media (max-width: 860px) {
+  .chat-panel { position: fixed; inset: auto 14px 76px 14px; z-index: 90; display: none; height: min(640px, calc(100vh - 110px)); box-shadow: 0 18px 50px rgba(31, 55, 43, .22); }
+  .chat-panel.chat-open { display: flex; }
+  .chat-close { display: inline-flex; }
+  .chat-fab { position: fixed; right: 18px; bottom: 18px; z-index: 80; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; color: #fffdf8; background: #416a5a; border-radius: 999px; box-shadow: 0 10px 25px rgba(44, 79, 62, .24); font-size: 11px; font-weight: 700; }
+  .chat-fab:hover { background: #315445; }
+}
+@media (max-width: 560px) {
+  .chat-panel { inset: auto 10px 76px 10px; }
+  .chat-fab { right: 14px; bottom: 14px; }
+  .month-status { padding: 12px 13px; }
+}
