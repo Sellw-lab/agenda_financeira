@@ -4,6 +4,19 @@ O modo local não usa o login OAuth do Manus. Ele cria uma identidade única (`l
 
 ## Executar
 
+### Windows PowerShell
+
+Na pasta do projeto, execute:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\setup-local.ps1
+```
+
+O script instala dependências, pede a `DATABASE_URL` diretamente no computador, aplica as migrações e inicia o servidor. A senha não é enviada para o chat nem incluída no repositório.
+
+### Manual
+
 ```bash
 pnpm dev:local
 ```
