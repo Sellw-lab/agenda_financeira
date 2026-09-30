@@ -112,7 +112,8 @@ export default function Home() {
   const savingsTotal = Object.values(profile.savingsAccounts || {}).reduce((sum, amount) => sum + amount, 0);
   const savingsThisMonth = (profile.savingsEntries || []).filter((entry) => entry.entryDate.slice(0, 7) === currentMonthKey()).reduce((sum, entry) => sum + entry.amountCents, 0);
   const monthBalance = totals.income - totals.expense - savingsThisMonth;
-  const monthStatus = isMonthClosing() && (monthIncome > 0 || actualTotals.income > 0) ? monthBalance >= 0 ? `Fechamento do mês: sobrou ${money(monthBalance)} da sua renda prevista.` : `Atenção: o mês deve fechar ${money(Math.abs(monthBalance))} no vermelho.` : null;
+  const hasMonthActivity = actualTotals.expense > 0 || actualTotals.income > 0 || savingsThisMonth > 0;
+  const monthStatus = isMonthClosing() && hasMonthActivity && (monthIncome > 0 || actualTotals.income > 0) ? monthBalance >= 0 ? `Fechamento do mês: sobrou ${money(monthBalance)} da sua renda prevista.` : `Atenção: o mês deve fechar ${money(Math.abs(monthBalance))} no vermelho.` : null;
   const categoriesTotal = useMemo(() => Object.entries(items.filter((item) => item.entryDate.slice(0, 7) === today().slice(0, 7) && item.kind !== "income").reduce<Record<string, number>>((acc, item) => { acc[item.category] = (acc[item.category] || 0) + item.amountCents; return acc; }, {})).sort((a, b) => b[1] - a[1]), [items]);
   const recent = [...items].sort((a, b) => b.entryDate.localeCompare(a.entryDate) || b.id - a.id);
   const name = "você";
