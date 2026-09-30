@@ -220,3 +220,42 @@ h3 { color: #29453b; }
   .chat-fab { right: 14px; bottom: 14px; }
   .month-status { padding: 12px 13px; }
 }
+
+/* Chat mobile: fits between the browser chrome and the floating button. */
+@media (max-width: 860px) {
+  .chat-panel {
+    inset: auto 12px 72px 12px;
+    height: min(560px, calc(100dvh - 96px));
+    max-height: calc(100svh - 96px);
+    min-height: 0;
+    border-radius: 15px;
+  }
+  .chat-body { min-height: 0; padding: 14px; }
+  .chat-composer {
+    flex: 0 0 auto;
+    min-height: 66px;
+    padding: 10px;
+    background: #f5f8f2 !important;
+    border-top: 1px solid #cfdacf !important;
+  }
+  .chat-composer textarea {
+    min-height: 42px;
+    color: #294d3d !important;
+    background: #fffdf8 !important;
+    border: 1px solid #b8cbbd !important;
+    box-shadow: 0 1px 2px rgba(38, 69, 53, .08);
+    font-size: 13px;
+  }
+  .chat-composer textarea::placeholder { color: #71857a; opacity: 1; }
+  .send-button { width: 42px; height: 42px; color: #fffdf8 !important; background: #315f4d !important; }
+  .send-button:disabled { color: #edf5ee !important; background: #91aa9b !important; opacity: 1; }
+  .chat-header { flex: 0 0 auto; min-height: 54px; padding: 11px 13px; }
+}
+@media (max-width: 560px) {
+  .chat-panel { inset: auto 8px 68px 8px; height: min(530px, calc(100dvh - 86px)); max-height: calc(100svh - 86px); }
+  .chat-body { padding: 11px; }
+  .chat-welcome { padding: 16px 5px; }
+  .chat-welcome > p { margin-bottom: 16px; }
+  .message-list { gap: 11px; }
+  .message-bubble { max-width: 88%; font-size: 12px; }
+}
