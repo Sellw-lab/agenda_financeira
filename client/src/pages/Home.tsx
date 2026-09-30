@@ -135,6 +135,7 @@ export default function Home() {
 
   const data = dashboard.data;
   const name = user.name?.split(" ")[0] || "você";
+  const isLocalMode = user.openId === "local-host-owner";
   const totalSpent = data?.totals.expense ?? 0;
   const categoryMax = Math.max(...(data?.categories.map(category => Number(category.total)) || [1]), 1);
 
@@ -171,10 +172,10 @@ export default function Home() {
           <div className="tip-icon"><Sparkles size={16} /></div>
           <p><strong>Dica rápida</strong><br />Escreva no chat do jeito que você fala. Eu organizo para você.</p>
         </div>
-        <div className="sidebar-profile">
+          <div className="sidebar-profile">
           <div className="avatar">{initials(user.name)}</div>
           <div className="profile-copy"><strong>{user.name || "Minha conta"}</strong><span>{user.email || "Conta pessoal"}</span></div>
-          <button className="icon-button subtle" onClick={() => void logout()} aria-label="Sair"><LogOut size={16} /></button>
+          {!isLocalMode && <button className="icon-button subtle" onClick={() => void logout()} aria-label="Sair"><LogOut size={16} /></button>}
         </div>
       </aside>
 
@@ -225,7 +226,7 @@ export default function Home() {
 
       {editItem && <EditItemModal item={editItem} onClose={() => setEditItem(null)} onSave={changes => updateItem.mutate({ id: editItem.id, ...changes })} isSaving={updateItem.isPending} />}
       {showAdd && <AddItemModal onClose={() => setShowAdd(false)} onSave={payload => createItem.mutate(payload)} isSaving={createItem.isPending} />}
-      {showProfile && <ProfileModal name={user.name || "Você"} email={user.email || ""} onClose={() => setShowProfile(false)} onLogout={() => void logout()} />}
+      {showProfile && <ProfileModal name={user.name || "Você"} email={user.email || ""} isLocalMode={isLocalMode} onClose={() => setShowProfile(false)} onLogout={() => void logout()} />}
     </div>
   );
 }
@@ -286,8 +287,8 @@ function AddItemModal({ onClose, onSave, isSaving }: { onClose: () => void; onSa
   return <Modal title="Novo lançamento" onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="segmented-control">{([["expense", "Despesa"], ["income", "Receita"], ["bill", "Conta"]] as const).map(([value, label]) => <button type="button" key={value} className={kind === value ? "selected" : ""} onClick={() => setKind(value)}>{label}</button>)}</div><label><span>Nome</span><Input value={merchant} onChange={event => setMerchant(event.target.value)} placeholder="Ex.: Mercado" required /></label><label><span>Categoria</span><select value={category} onChange={event => setCategory(event.target.value)}>{Object.keys(categoryColors).map(option => <option key={option}>{option}</option>)}</select></label><div className="form-row"><label><span>Valor</span><div className="input-with-prefix"><small>R$</small><Input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" required /></div></label><label><span>Data</span><Input type="date" value={date} onChange={event => setDate(event.target.value)} required /></label></div><label className="checkbox-line"><input type="checkbox" checked={fixed} onChange={event => setFixed(event.target.checked)} /><span>É fixo ou recorrente</span></label><div className="modal-actions"><Button type="button" variant="outline" onClick={onClose}>cancelar</Button><Button type="submit" className="primary-button" disabled={isSaving}>{isSaving ? "salvando" : "adicionar"}</Button></div></form></Modal>;
 }
 
-function ProfileModal({ name, email, onClose, onLogout }: { name: string; email: string; onClose: () => void; onLogout: () => void }) {
-  return <Modal title="Sua conta" onClose={onClose}><div className="profile-modal"><div className="large-avatar">{initials(name)}</div><h3>{name}</h3><p>{email}</p><Button variant="outline" onClick={onLogout}><LogOut size={16} /> sair da conta</Button></div></Modal>;
+function ProfileModal({ name, email, isLocalMode, onClose, onLogout }: { name: string; email: string; isLocalMode: boolean; onClose: () => void; onLogout: () => void }) {
+  return <Modal title="Sua conta" onClose={onClose}><div className="profile-modal"><div className="large-avatar">{initials(name)}</div><h3>{name}</h3><p>{email}</p>{isLocalMode ? <p className="local-mode-note">modo local ativo · seus dados ficam nesta instalação</p> : <Button variant="outline" onClick={onLogout}><LogOut size={16} /> sair da conta</Button>}</div></Modal>;
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

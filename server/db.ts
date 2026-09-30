@@ -63,6 +63,14 @@ export async function getUserByOpenId(openId: string) {
   return result[0];
 }
 
+export async function getOrCreateLocalUser() {
+  const localOpenId = "local-host-owner";
+  const existing = await getUserByOpenId(localOpenId);
+  if (existing) return existing;
+  await upsertUser({ openId: localOpenId, name: "Minha conta", email: "local@localhost", loginMethod: "local" });
+  return getUserByOpenId(localOpenId);
+}
+
 export async function getOrCreateProfile(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
