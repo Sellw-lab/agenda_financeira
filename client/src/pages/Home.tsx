@@ -1,307 +1,87 @@
-import { startLogin } from "@/const";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  BarChart3,
-  Bell,
-  CalendarDays,
-  Check,
-  ChevronRight,
-  CircleDollarSign,
-  CreditCard,
-  Edit3,
-  LayoutDashboard,
-  Loader2,
-  LogOut,
-  Menu,
-  MessageCircle,
-  MoreHorizontal,
-  Plus,
-  Receipt,
-  Send,
-  Settings2,
-  Sparkles,
-  Target,
-  Trash2,
-  TrendingUp,
-  WalletCards,
-  X,
+  ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronRight, CircleDollarSign,
+  CreditCard, Edit3, LayoutDashboard, Menu, MessageCircle, Plus, Receipt, Send,
+  Settings2, Sparkles, Trash2, TrendingUp, WalletCards, X,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
+type Kind = "income" | "expense" | "bill";
+type View = "overview" | "transactions" | "settings";
+type Item = { id: number; kind: Kind; amountCents: number; merchant: string; category: string; entryDate: string; isFixed: boolean };
+type Message = { id: number; role: "user" | "assistant"; content: string };
+type Profile = { monthlyIncomeCents: number; savingsGoalCents: number };
+type EditItem = Item;
+
+const STORAGE_KEY = "bolso-claro-local-v1";
 const MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-const categoryColors: Record<string, string> = {
-  Lazer: "#C9A06A",
-  "Farmácia": "#8E7BB5",
-  Comida: "#E07A5F",
-  Mercado: "#71A68A",
-  Transporte: "#6B8FC4",
-  Moradia: "#A77E66",
-  Saúde: "#C77788",
-  Educação: "#5C9DA1",
-  Assinaturas: "#8A8AB7",
-  "Cuidados pessoais": "#D68EAE",
-  Outros: "#9BA5A0",
-};
-
-function money(cents = 0) {
-  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function shortDate(value: string | Date) {
-  const date = typeof value === "string" ? new Date(`${value}T12:00:00`) : new Date(value);
-  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(" de ", " ");
-}
-
-function initials(name?: string | null) {
-  return (name || "Você").split(" ").map(part => part[0]).join("").slice(0, 2).toUpperCase();
-}
-
+const categoryColors: Record<string, string> = { Lazer: "#C9A06A", "Farmácia": "#8E7BB5", Comida: "#E07A5F", Mercado: "#71A68A", Transporte: "#6B8FC4", Moradia: "#A77E66", Saúde: "#C77788", Educação: "#5C9DA1", Assinaturas: "#8A8AB7", "Cuidados pessoais": "#D68EAE", Outros: "#9BA5A0" };
+const categories = Object.keys(categoryColors);
 const logoUrl = `${import.meta.env.BASE_URL}bolso-claro-logo.svg`;
 
-type View = "overview" | "transactions" | "settings";
+function today() { return new Date().toISOString().slice(0, 10); }
+function money(cents = 0) { return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+function parseMoney(value: string) { return Math.round(Number(value.replace(/\./g, "").replace(",", ".")) * 100) || 0; }
+function shortDate(value: string) { return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(" de ", " "); }
+function initials(name = "Você") { return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(); }
+function monthLabel() { const now = new Date(); return `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`; }
+function readStore() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
+function saveStore(data: { items: Item[]; messages: Message[]; profile: Profile }) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 
-type EditItem = {
-  id: number;
-  merchant: string;
-  category: string;
-  amountCents: number;
-  entryDate: string;
-  isFixed: boolean;
-};
+function parseText(text: string): Omit<Item, "id"> | null {
+  const match = text.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/i);
+  if (!match) return null;
+  const amountCents = parseMoney(match[1]);
+  if (!amountCents) return null;
+  const lower = text.toLowerCase();
+  const kind: Kind = /\b(recebi|ganhei|salário|salario|renda|entrada|receita)\b/.test(lower) ? "income" : /\b(conta|boleto|vence|vencimento)\b/.test(lower) ? "bill" : "expense";
+  const keywords: Record<string, string[]> = { Mercado: ["mercado", "supermercado", "feira"], Comida: ["almoço", "almoco", "jantar", "café", "cafe", "ifood", "pizza", "lanche", "restaurante"], Transporte: ["uber", "99", "gasolina", "ônibus", "onibus", "metrô", "metro"], Moradia: ["aluguel", "luz", "água", "agua", "internet", "casa"], Farmácia: ["farmácia", "farmacia", "remédio", "remedio"], Lazer: ["shopping", "cinema", "viagem", "bar", "show"], Saúde: ["médico", "medico", "dentista", "exame"], Assinaturas: ["netflix", "spotify", "prime", "assinatura"], "Cuidados pessoais": ["academia", "barbearia", "salão", "salao"], Educação: ["curso", "livro", "escola"] };
+  const category = kind === "income" ? "Renda" : Object.entries(keywords).find(([, words]) => words.some((word) => lower.includes(word)))?.[0] || "Outros";
+  const merchant = (text.replace(match[0], "").replace(/\b(gastei|gasto|paguei|recebi|ganhei|salário|salario|no|na|em|com|de|do|da|reais|real|fixo|fixa)\b/gi, " ").replace(/\s+/g, " ").trim() || category).slice(0, 80);
+  return { kind, amountCents, merchant, category, entryDate: today(), isFixed: /\b(fixo|fixa|recorrente|mensal)\b/.test(lower) };
+}
 
 export default function Home() {
-  const { user, loading, logout } = useAuth();
-  const isLocalHost = typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const initial = useMemo(() => readStore() || { items: [], messages: [], profile: { monthlyIncomeCents: 0, savingsGoalCents: 0 } }, []);
+  const [items, setItems] = useState<Item[]>(initial.items);
+  const [messages, setMessages] = useState<Message[]>(initial.messages);
+  const [profile, setProfile] = useState<Profile>(initial.profile);
   const [view, setView] = useState<View>("overview");
   const [chatInput, setChatInput] = useState("");
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [editItem, setEditItem] = useState<EditItem | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  useEffect(() => saveStore({ items, messages, profile }), [items, messages, profile]);
 
-  const dashboard = trpc.finance.dashboard.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: false });
-  const chat = trpc.finance.chat.history.useQuery(undefined, { enabled: Boolean(user), refetchOnWindowFocus: false });
-  const sendChat = trpc.finance.chat.send.useMutation({
-    onSuccess: async () => {
-      setChatInput("");
-      await Promise.all([chat.refetch(), dashboard.refetch()]);
-    },
-    onError: error => toast.error(error.message || "Não consegui processar essa mensagem."),
-  });
-  const updateItem = trpc.finance.items.update.useMutation({
-    onSuccess: async () => {
-      setEditItem(null);
-      toast.success("Lançamento atualizado.");
-      await dashboard.refetch();
-    },
-    onError: error => toast.error(error.message),
-  });
-  const deleteItem = trpc.finance.items.remove.useMutation({
-    onSuccess: async () => {
-      toast.success("Lançamento removido.");
-      await dashboard.refetch();
-    },
-    onError: error => toast.error(error.message),
-  });
-  const createItem = trpc.finance.items.create.useMutation({
-    onSuccess: async () => {
-      setShowAdd(false);
-      toast.success("Lançamento adicionado.");
-      await dashboard.refetch();
-    },
-    onError: error => toast.error(error.message),
-  });
-  const updateProfile = trpc.finance.profile.update.useMutation({
-    onSuccess: async () => {
-      setShowProfile(false);
-      toast.success("Perfil financeiro atualizado.");
-      await dashboard.refetch();
-    },
-    onError: error => toast.error(error.message),
-  });
+  const totals = useMemo(() => items.reduce((acc, item) => { if (item.kind === "income") acc.income += item.amountCents; else { acc.expense += item.amountCents; if (item.isFixed) acc.fixed += item.amountCents; } return acc; }, { income: 0, expense: 0, fixed: 0 }), [items]);
+  const categoriesTotal = useMemo(() => Object.entries(items.filter((item) => item.kind !== "income").reduce<Record<string, number>>((acc, item) => { acc[item.category] = (acc[item.category] || 0) + item.amountCents; return acc; }, {})).sort((a, b) => b[1] - a[1]), [items]);
+  const recent = [...items].sort((a, b) => b.entryDate.localeCompare(a.entryDate) || b.id - a.id);
+  const name = "você";
+  function navigate(next: View) { setView(next); setMenuOpen(false); }
+  function addItem(item: Omit<Item, "id">) { setItems((current) => [{ ...item, id: Date.now() }, ...current]); setAddOpen(false); }
+  function updateItem(changes: Omit<Item, "id">) { if (!editItem) return; setItems((current) => current.map((item) => item.id === editItem.id ? { ...changes, id: editItem.id } : item)); setEditItem(null); }
+  function sendChat(event: FormEvent) { event.preventDefault(); const text = chatInput.trim(); if (!text) return; const parsed = parseText(text); let reply = "Posso registrar uma receita, despesa ou conta. Tente: “mercado 120” ou “recebi 2500 salário”."; if (/\b(saldo|quanto gastei|gastos|resumo)\b/i.test(text)) reply = `Neste mês: entraram ${money(totals.income)} e saíram ${money(totals.expense)}. Seu saldo previsto é ${money(totals.income - totals.expense)}.`; else if (parsed) { addItem(parsed); reply = `${parsed.kind === "income" ? "Receita registrada" : parsed.kind === "bill" ? "Conta planejada" : "Gasto registrado"}: ${parsed.merchant} · ${money(parsed.amountCents)}.`; } setMessages((current) => [...current, { id: Date.now(), role: "user", content: text }, { id: Date.now() + 1, role: "assistant", content: reply }]); setChatInput(""); }
 
-  const monthLabel = useMemo(() => {
-    const now = new Date();
-    return `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
-  }, []);
-
-  if (loading) return <LoadingScreen />;
-  // Local installations use the server-created local-host-owner identity and
-  // must never send the user through the Manus login screen.
-  if (!user && isLocalHost) return <LocalModeUnavailable />;
-  if (!user) return <LoginScreen />;
-
-  const data = dashboard.data;
-  const name = user.name?.split(" ")[0] || "você";
-  const isLocalMode = user.openId === "local-host-owner";
-  const totalSpent = data?.totals.expense ?? 0;
-  const categoryMax = Math.max(...(data?.categories.map(category => Number(category.total)) || [1]), 1);
-
-  function handleChatSubmit(event: FormEvent) {
-    event.preventDefault();
-    const trimmed = chatInput.trim();
-    if (!trimmed || sendChat.isPending) return;
-    sendChat.mutate({ text: trimmed });
-  }
-
-  function navigate(nextView: View) {
-    setView(nextView);
-    setShowMobileMenu(false);
-  }
-
-  return (
-    <div className="app-shell">
-      <aside className={`sidebar ${showMobileMenu ? "sidebar-open" : ""}`}>
-        <div className="brand-lockup">
-          <img src={logoUrl} alt="" className="brand-mark" />
-          <div>
-            <p className="brand-name">Bolso Claro</p>
-            <p className="brand-caption">agenda financeira</p>
-          </div>
-          <button className="mobile-close" onClick={() => setShowMobileMenu(false)} aria-label="Fechar menu"><X size={18} /></button>
-        </div>
-        <nav className="main-nav" aria-label="Navegação principal">
-          <NavButton active={view === "overview"} icon={<LayoutDashboard size={18} />} label="Visão geral" onClick={() => navigate("overview")} />
-          <NavButton active={view === "transactions"} icon={<Receipt size={18} />} label="Lançamentos" onClick={() => navigate("transactions")} />
-          <NavButton active={view === "settings"} icon={<Settings2 size={18} />} label="Configurações" onClick={() => navigate("settings")} />
-        </nav>
-        <div className="sidebar-spacer" />
-        <div className="sidebar-tip">
-          <div className="tip-icon"><Sparkles size={16} /></div>
-          <p><strong>Dica rápida</strong><br />Escreva no chat do jeito que você fala. Eu organizo para você.</p>
-        </div>
-          <div className="sidebar-profile">
-          <div className="avatar">{initials(user.name)}</div>
-          <div className="profile-copy"><strong>{user.name || "Minha conta"}</strong><span>{user.email || "Conta pessoal"}</span></div>
-          {!isLocalMode && <button className="icon-button subtle" onClick={() => void logout()} aria-label="Sair"><LogOut size={16} /></button>}
-        </div>
-      </aside>
-
-      {showMobileMenu && <button className="mobile-overlay" onClick={() => setShowMobileMenu(false)} aria-label="Fechar menu" />}
-
-      <main className="main-area">
-        <header className="topbar">
-          <div className="topbar-left">
-            <button className="mobile-menu-button" onClick={() => setShowMobileMenu(true)} aria-label="Abrir menu"><Menu size={20} /></button>
-            <div><p className="eyebrow">{monthLabel}</p><h1>{view === "overview" ? `Bom dia, ${name}` : view === "transactions" ? "Seus lançamentos" : "Seu espaço financeiro"}</h1></div>
-          </div>
-          <div className="topbar-actions"><button className="notification-button" aria-label="Notificações"><Bell size={18} /><span /></button><button className="top-avatar" onClick={() => setShowProfile(true)}>{initials(user.name)}</button></div>
-        </header>
-
-        {view === "overview" && (
-          <div className="page-grid">
-            <section className="content-column">
-              <div className="balance-card">
-                <div className="balance-card-top"><div><p className="card-kicker">Saldo previsto no mês</p><p className="balance-value">{money(data?.totals.balance ?? 0)}</p></div><div className="balance-badge"><TrendingUp size={14} /> sob controle</div></div>
-                <div className="balance-rule" />
-                <div className="balance-footer"><span><ArrowUpRight size={14} /> receitas <strong>{money(data?.totals.income ?? 0)}</strong></span><span><ArrowDownLeft size={14} /> despesas <strong>{money(totalSpent)}</strong></span></div>
-              </div>
-
-              <div className="metrics-grid">
-                <Metric icon={<ArrowUpRight size={17} />} label="Receitas" value={money(data?.totals.income ?? 0)} accent="green" note="neste mês" />
-                <Metric icon={<ArrowDownLeft size={17} />} label="Despesas" value={money(totalSpent)} accent="orange" note="neste mês" />
-                <Metric icon={<Receipt size={17} />} label="Gastos fixos" value={money(data?.totals.fixed ?? 0)} accent="purple" note="compromissos" />
-              </div>
-
-              <div className="section-heading"><div><p className="eyebrow">Visão do mês</p><h2>Para onde vai seu dinheiro</h2></div><button className="text-button" onClick={() => navigate("transactions")}>ver lançamentos <ChevronRight size={15} /></button></div>
-              <div className="panel category-panel">
-                {data?.categories.length ? data.categories.map(category => {
-                  const total = Number(category.total);
-                  return <div className="category-row" key={category.category}><div className="category-meta"><span className="category-dot" style={{ backgroundColor: categoryColors[category.category] || categoryColors.Outros }} /><span>{category.category}</span><strong>{money(total)}</strong></div><div className="category-track"><span style={{ width: `${Math.max(8, (total / categoryMax) * 100)}%`, backgroundColor: categoryColors[category.category] || categoryColors.Outros }} /></div></div>;
-                }) : <EmptyPanel icon={<BarChart3 size={22} />} title="Seu mapa financeiro começa aqui" body="Registre um gasto no chat e suas categorias aparecem neste espaço." />}
-              </div>
-
-              <div className="section-heading compact-heading"><div><p className="eyebrow">Histórico</p><h2>Últimos lançamentos</h2></div><button className="icon-button" onClick={() => setShowAdd(true)} aria-label="Adicionar lançamento"><Plus size={18} /></button></div>
-              <div className="panel transaction-panel">{data?.latest.length ? data.latest.slice(0, 5).map(item => <TransactionRow key={item.id} item={item} onEdit={() => setEditItem({ id: item.id, merchant: item.merchant || "", category: item.category, amountCents: item.amountCents, entryDate: item.entryDate, isFixed: item.isFixed })} onDelete={() => deleteItem.mutate({ id: item.id })} />) : <EmptyPanel icon={<Receipt size={22} />} title="Nenhum lançamento ainda" body="Digite algo como “mercado 120” no chat ao lado." />}</div>
-            </section>
-            <ChatPanel messages={chat.data || []} input={chatInput} setInput={setChatInput} onSubmit={handleChatSubmit} isPending={sendChat.isPending} />
-          </div>
-        )}
-
-        {view === "transactions" && <TransactionsView items={data?.latest || []} onAdd={() => setShowAdd(true)} onEdit={item => setEditItem({ id: item.id, merchant: item.merchant || "", category: item.category, amountCents: item.amountCents, entryDate: item.entryDate, isFixed: item.isFixed })} onDelete={id => deleteItem.mutate({ id })} />}
-        {view === "settings" && <SettingsView profile={data?.profile} onSave={(monthlyIncomeCents, savingsGoalCents) => updateProfile.mutate({ monthlyIncomeCents, savingsGoalCents })} isSaving={updateProfile.isPending} />}
-      </main>
-
-      {editItem && <EditItemModal item={editItem} onClose={() => setEditItem(null)} onSave={changes => updateItem.mutate({ id: editItem.id, ...changes })} isSaving={updateItem.isPending} />}
-      {showAdd && <AddItemModal onClose={() => setShowAdd(false)} onSave={payload => createItem.mutate(payload)} isSaving={createItem.isPending} />}
-      {showProfile && <ProfileModal name={user.name || "Você"} email={user.email || ""} isLocalMode={isLocalMode} onClose={() => setShowProfile(false)} onLogout={() => void logout()} />}
-    </div>
-  );
+  return <div className="app-shell">
+    <aside className={`sidebar ${menuOpen ? "sidebar-open" : ""}`}><div className="brand-lockup"><img src={logoUrl} alt="" className="brand-mark" /><div><p className="brand-name">Bolso Claro</p><p className="brand-caption">agenda financeira</p></div><button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X size={18} /></button></div><nav className="main-nav" aria-label="Navegação principal"><NavButton active={view === "overview"} icon={<LayoutDashboard size={18} />} label="Visão geral" onClick={() => navigate("overview")} /><NavButton active={view === "transactions"} icon={<Receipt size={18} />} label="Lançamentos" onClick={() => navigate("transactions")} /><NavButton active={view === "settings"} icon={<Settings2 size={18} />} label="Configurações" onClick={() => navigate("settings")} /></nav><div className="sidebar-spacer" /><div className="sidebar-tip"><div className="tip-icon"><Sparkles size={16} /></div><p><strong>Modo privado</strong><br />Seus dados ficam apenas neste celular, sem conta e sem compartilhamento.</p></div><div className="sidebar-profile"><div className="avatar">VC</div><div className="profile-copy"><strong>Minha agenda</strong><span>armazenamento local</span></div></div></aside>
+    {menuOpen && <button className="mobile-overlay" onClick={() => setMenuOpen(false)} aria-label="Fechar menu" />}
+    <main className="main-area"><header className="topbar"><div className="topbar-left"><button className="mobile-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu"><Menu size={20} /></button><div><p className="eyebrow">{monthLabel()}</p><h1>{view === "overview" ? `Bom dia, ${name}` : view === "transactions" ? "Seus lançamentos" : "Seu espaço financeiro"}</h1></div></div><div className="topbar-actions"><button className="top-avatar" onClick={() => setProfileOpen(true)}>VC</button></div></header>
+      {view === "overview" && <div className="page-grid"><section className="content-column"><div className="balance-card"><div className="balance-card-top"><div><p className="card-kicker">Saldo previsto no mês</p><p className="balance-value">{money(totals.income - totals.expense)}</p></div><div className="balance-badge"><TrendingUp size={14} /> local e privado</div></div><div className="balance-rule" /><div className="balance-footer"><span><ArrowUpRight size={14} /> receitas <strong>{money(totals.income)}</strong></span><span><ArrowDownLeft size={14} /> despesas <strong>{money(totals.expense)}</strong></span></div></div><div className="metrics-grid"><Metric icon={<ArrowUpRight size={17} />} label="Receitas" value={money(totals.income)} accent="green" note="neste mês" /><Metric icon={<ArrowDownLeft size={17} />} label="Despesas" value={money(totals.expense)} accent="orange" note="neste mês" /><Metric icon={<Receipt size={17} />} label="Gastos fixos" value={money(totals.fixed)} accent="purple" note="compromissos" /></div><div className="section-heading"><div><p className="eyebrow">Visão do mês</p><h2>Para onde vai seu dinheiro</h2></div><button className="text-button" onClick={() => navigate("transactions")}>ver lançamentos <ChevronRight size={15} /></button></div><div className="panel category-panel">{categoriesTotal.length ? categoriesTotal.map(([category, total]) => <div className="category-row" key={category}><div className="category-meta"><span className="category-dot" style={{ backgroundColor: categoryColors[category] || categoryColors.Outros }} /><span>{category}</span><strong>{money(total)}</strong></div><div className="category-track"><span style={{ width: `${Math.max(8, (total / categoriesTotal[0][1]) * 100)}%`, backgroundColor: categoryColors[category] || categoryColors.Outros }} /></div></div>) : <EmptyPanel icon={<BarChart3 size={22} />} title="Seu mapa financeiro começa aqui" body="Registre um gasto no chat e suas categorias aparecem neste espaço." />}</div><div className="section-heading compact-heading"><div><p className="eyebrow">Histórico</p><h2>Últimos lançamentos</h2></div><button className="icon-button" onClick={() => setAddOpen(true)} aria-label="Adicionar lançamento"><Plus size={18} /></button></div><div className="panel transaction-panel">{recent.length ? recent.slice(0, 5).map((item) => <TransactionRow key={item.id} item={item} onEdit={() => setEditItem(item)} onDelete={() => setItems((current) => current.filter((entry) => entry.id !== item.id))} />) : <EmptyPanel icon={<Receipt size={22} />} title="Nenhum lançamento ainda" body="Digite algo como “mercado 120” no chat ao lado." />}</div></section><ChatPanel messages={messages} input={chatInput} setInput={setChatInput} onSubmit={sendChat} /></div>}
+      {view === "transactions" && <TransactionsView items={recent} onAdd={() => setAddOpen(true)} onEdit={setEditItem} onDelete={(id) => setItems((current) => current.filter((item) => item.id !== id))} />}
+      {view === "settings" && <SettingsView profile={profile} onSave={(next) => setProfile(next)} />}
+    </main>
+    {editItem && <EditItemModal item={editItem} onClose={() => setEditItem(null)} onSave={updateItem} />} {addOpen && <AddItemModal onClose={() => setAddOpen(false)} onSave={addItem} />} {profileOpen && <Modal title="Sua agenda" onClose={() => setProfileOpen(false)}><div className="profile-modal"><div className="large-avatar">VC</div><h3>Modo privado ativo</h3><p>Seus lançamentos ficam somente neste celular.</p><p className="local-mode-note">Não usamos login nem enviamos seus dados para outra pessoa.</p></div></Modal>}
+  </div>;
 }
 
-function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
-  return <button className={`nav-button ${active ? "active" : ""}`} onClick={onClick}>{icon}<span>{label}</span>{active && <span className="nav-active-dot" />}</button>;
-}
-
-function Metric({ icon, label, value, accent, note }: { icon: React.ReactNode; label: string; value: string; accent: string; note: string }) {
-  return <div className="metric-card"><div className={`metric-icon ${accent}`}>{icon}</div><div><p>{label}</p><strong>{value}</strong><span>{note}</span></div></div>;
-}
-
-function EmptyPanel({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
-  return <div className="empty-panel"><div className="empty-icon">{icon}</div><strong>{title}</strong><p>{body}</p></div>;
-}
-
-function TransactionRow({ item, onEdit, onDelete }: { item: any; onEdit: () => void; onDelete: () => void }) {
-  const isIncome = item.kind === "income";
-  return <div className="transaction-row"><div className={`transaction-icon ${isIncome ? "income" : "expense"}`}>{isIncome ? <ArrowUpRight size={16} /> : <Receipt size={16} />}</div><div className="transaction-copy"><strong>{item.merchant || item.category}</strong><span>{item.category} · {shortDate(item.entryDate)}{item.isFixed ? " · fixo" : ""}</span></div><strong className={`transaction-amount ${isIncome ? "income-text" : ""}`}>{isIncome ? "+" : "-"}{money(item.amountCents)}</strong><button className="icon-button row-action" onClick={onEdit} aria-label="Editar lançamento"><Edit3 size={15} /></button><button className="icon-button row-action danger" onClick={onDelete} aria-label="Excluir lançamento"><Trash2 size={15} /></button></div>;
-}
-
-function ChatPanel({ messages, input, setInput, onSubmit, isPending }: { messages: any[]; input: string; setInput: (value: string) => void; onSubmit: (event: FormEvent) => void; isPending: boolean }) {
-  const hasMessages = messages.length > 0;
-  const suggestions = ["shopping 10", "recebi 2500 salário", "quanto gastei esse mês?"];
-  return <section className="chat-panel"><div className="chat-header"><div className="chat-title"><div className="chat-orb"><Sparkles size={17} /></div><div><strong>Seu copiloto financeiro</strong><span>entende o jeito que você fala</span></div></div><button className="icon-button subtle"><MoreHorizontal size={18} /></button></div><div className="chat-body">{!hasMessages && <div className="chat-welcome"><div className="welcome-mark"><MessageCircle size={24} /></div><h3>Me conta, o que aconteceu?</h3><p>Registre um gasto, uma receita ou pergunte sobre sua vida financeira.</p><div className="suggestion-list">{suggestions.map(suggestion => <button key={suggestion} onClick={() => setInput(suggestion)}>{suggestion}<ChevronRight size={14} /></button>)}</div></div>}{hasMessages && <div className="message-list">{messages.map(message => <div className={`message-row ${message.role === "user" ? "user-message" : "assistant-message"}`} key={message.id}><div className="message-avatar">{message.role === "user" ? "Você" : <Sparkles size={13} />}</div><div className="message-bubble">{message.content}</div></div>)}{isPending && <div className="message-row assistant-message"><div className="message-avatar"><Sparkles size={13} /></div><div className="message-bubble typing"><span /><span /><span /></div></div>}</div>}</div><form className="chat-composer" onSubmit={onSubmit}><Textarea value={input} onChange={event => setInput(event.target.value)} placeholder="Ex.: mercado 120 no débito" rows={1} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSubmit(event); } }} /><Button type="submit" size="icon" disabled={!input.trim() || isPending} className="send-button">{isPending ? <Loader2 size={17} className="spin" /> : <Send size={17} />}</Button></form></section>;
-}
-
-function TransactionsView({ items, onAdd, onEdit, onDelete }: { items: any[]; onAdd: () => void; onEdit: (item: any) => void; onDelete: (id: number) => void }) {
-  return <section className="full-page"><div className="section-heading page-heading"><div><p className="eyebrow">Registro completo</p><h2>Todos os lançamentos recentes</h2></div><Button onClick={onAdd} className="primary-button"><Plus size={17} /> adicionar</Button></div><div className="panel transaction-panel large-panel">{items.length ? items.map(item => <TransactionRow key={item.id} item={item} onEdit={() => onEdit(item)} onDelete={() => onDelete(item.id)} />) : <EmptyPanel icon={<Receipt size={22} />} title="Sua lista está vazia" body="Use o chat ou adicione seu primeiro lançamento." />}</div><div className="info-strip"><div className="info-icon"><CircleDollarSign size={18} /></div><div><strong>Uma rotina simples funciona melhor</strong><p>Não precisa esperar o fechamento do mês. Anote no momento em que acontecer e deixe o Bolso Claro cuidar da organização.</p></div></div></section>;
-}
-
-function SettingsView({ profile, onSave, isSaving }: { profile?: any; onSave: (income: number, goal: number) => void; isSaving: boolean }) {
-  const [income, setIncome] = useState(((profile?.monthlyIncomeCents || 0) / 100).toFixed(2).replace(".", ","));
-  const [goal, setGoal] = useState(((profile?.savingsGoalCents || 0) / 100).toFixed(2).replace(".", ","));
-  const [cardName, setCardName] = useState("");
-  function parse(value: string) { return Math.round(Number(value.replace(/\./g, "").replace(",", ".")) * 100) || 0; }
-  return <section className="full-page settings-page"><div className="section-heading page-heading"><div><p className="eyebrow">Seu espaço financeiro</p><h2>Configurações simples, sem complicação</h2></div></div><div className="settings-grid"><form className="panel settings-card" onSubmit={event => { event.preventDefault(); onSave(parse(income), parse(goal)); }}><div className="settings-card-title"><div className="metric-icon green"><WalletCards size={18} /></div><div><h3>Seu ponto de partida</h3><p>Esses valores ajudam a calcular seu saldo previsto.</p></div></div><label><span>Renda mensal</span><div className="input-with-prefix"><small>R$</small><Input value={income} onChange={event => setIncome(event.target.value)} placeholder="0,00" /></div></label><label><span>Meta de economia mensal</span><div className="input-with-prefix"><small>R$</small><Input value={goal} onChange={event => setGoal(event.target.value)} placeholder="0,00" /></div></label><Button type="submit" className="primary-button" disabled={isSaving}>{isSaving ? <Loader2 size={16} className="spin" /> : <Check size={16} />} salvar informações</Button></form><div className="panel settings-card"><div className="settings-card-title"><div className="metric-icon purple"><CreditCard size={18} /></div><div><h3>Meios de pagamento</h3><p>Deixe seus lançamentos mais fáceis de entender.</p></div></div><div className="method-placeholder"><CreditCard size={17} /><span>Você pode indicar “no cartão”, “Pix” ou “dinheiro” direto no chat.</span></div><label><span>Adicionar um cartão ou conta</span><div className="inline-form"><Input value={cardName} onChange={event => setCardName(event.target.value)} placeholder="Ex.: Nubank" /><Button type="button" variant="outline" onClick={() => { if (cardName.trim()) { setCardName(""); toast.success("Meio de pagamento salvo para a próxima versão."); } }}>adicionar</Button></div></label></div></div></section>;
-}
-
-function EditItemModal({ item, onClose, onSave, isSaving }: { item: EditItem; onClose: () => void; onSave: (changes: { merchant: string; category: string; amountCents: number; entryDate: string; isFixed: boolean }) => void; isSaving: boolean }) {
-  const [merchant, setMerchant] = useState(item.merchant);
-  const [category, setCategory] = useState(item.category);
-  const [amount, setAmount] = useState((item.amountCents / 100).toFixed(2).replace(".", ","));
-  const [date, setDate] = useState(item.entryDate);
-  const [fixed, setFixed] = useState(item.isFixed);
-  function submit(event: FormEvent) { event.preventDefault(); onSave({ merchant, category, amountCents: Math.round(Number(amount.replace(/\./g, "").replace(",", ".")) * 100), entryDate: date, isFixed: fixed }); }
-  return <Modal title="Editar lançamento" onClose={onClose}><form className="modal-form" onSubmit={submit}><label><span>Estabelecimento</span><Input value={merchant} onChange={event => setMerchant(event.target.value)} /></label><label><span>Categoria</span><select value={category} onChange={event => setCategory(event.target.value)}>{Object.keys(categoryColors).map(option => <option key={option}>{option}</option>)}</select></label><div className="form-row"><label><span>Valor</span><div className="input-with-prefix"><small>R$</small><Input value={amount} onChange={event => setAmount(event.target.value)} /></div></label><label><span>Data</span><Input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div><label className="checkbox-line"><input type="checkbox" checked={fixed} onChange={event => setFixed(event.target.checked)} /><span>É um gasto fixo</span></label><div className="modal-actions"><Button type="button" variant="outline" onClick={onClose}>cancelar</Button><Button type="submit" className="primary-button" disabled={isSaving}>{isSaving ? "salvando" : "salvar alterações"}</Button></div></form></Modal>;
-}
-
-function AddItemModal({ onClose, onSave, isSaving }: { onClose: () => void; onSave: (payload: { kind: "income" | "expense" | "bill"; amountCents: number; merchant?: string; category: string; entryDate: string; dueDate?: string | null; paymentMethod?: string | null; note?: string | null; isFixed: boolean }) => void; isSaving: boolean }) {
-  const [kind, setKind] = useState<"income" | "expense" | "bill">("expense");
-  const [merchant, setMerchant] = useState("");
-  const [category, setCategory] = useState("Outros");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [fixed, setFixed] = useState(false);
-  function submit(event: FormEvent) { event.preventDefault(); onSave({ kind, merchant, category, amountCents: Math.round(Number(amount.replace(/\./g, "").replace(",", ".")) * 100), entryDate: date, isFixed: fixed }); }
-  return <Modal title="Novo lançamento" onClose={onClose}><form className="modal-form" onSubmit={submit}><div className="segmented-control">{([["expense", "Despesa"], ["income", "Receita"], ["bill", "Conta"]] as const).map(([value, label]) => <button type="button" key={value} className={kind === value ? "selected" : ""} onClick={() => setKind(value)}>{label}</button>)}</div><label><span>Nome</span><Input value={merchant} onChange={event => setMerchant(event.target.value)} placeholder="Ex.: Mercado" required /></label><label><span>Categoria</span><select value={category} onChange={event => setCategory(event.target.value)}>{Object.keys(categoryColors).map(option => <option key={option}>{option}</option>)}</select></label><div className="form-row"><label><span>Valor</span><div className="input-with-prefix"><small>R$</small><Input value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" required /></div></label><label><span>Data</span><Input type="date" value={date} onChange={event => setDate(event.target.value)} required /></label></div><label className="checkbox-line"><input type="checkbox" checked={fixed} onChange={event => setFixed(event.target.checked)} /><span>É fixo ou recorrente</span></label><div className="modal-actions"><Button type="button" variant="outline" onClick={onClose}>cancelar</Button><Button type="submit" className="primary-button" disabled={isSaving}>{isSaving ? "salvando" : "adicionar"}</Button></div></form></Modal>;
-}
-
-function ProfileModal({ name, email, isLocalMode, onClose, onLogout }: { name: string; email: string; isLocalMode: boolean; onClose: () => void; onLogout: () => void }) {
-  return <Modal title="Sua conta" onClose={onClose}><div className="profile-modal"><div className="large-avatar">{initials(name)}</div><h3>{name}</h3><p>{email}</p>{isLocalMode ? <p className="local-mode-note">modo local ativo · seus dados ficam nesta instalação</p> : <Button variant="outline" onClick={onLogout}><LogOut size={16} /> sair da conta</Button>}</div></Modal>;
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button></div>{children}</div></div>;
-}
-
-function LoadingScreen() { return <div className="center-screen"><Loader2 className="spin" size={28} /><span>abrindo seu espaço financeiro…</span></div>; }
-function LocalModeUnavailable() { return <div className="center-screen"><Loader2 className="spin" size={28} /><span>iniciando sua agenda local…</span><small>Verifique se o servidor foi iniciado com <code>pnpm dev:local</code>.</small></div>; }
-function LoginScreen() { return <div className="login-screen"><div className="login-card"><img src={logoUrl} alt="Bolso Claro" className="login-logo" /><p className="eyebrow">sua agenda financeira</p><h1>Entenda seu dinheiro<br /><em>sem complicar.</em></h1><p className="login-copy">Registre seus gastos do jeito que você fala e veja tudo tomar forma.</p><Button onClick={() => startLogin()} className="primary-button login-button">entrar na minha agenda <ChevronRight size={17} /></Button><p className="login-footnote">Acesso seguro pela sua conta Manus.</p></div><div className="login-decoration"><div className="deco-card deco-one"><span>saldo previsto</span><strong>R$ 3.240,00</strong></div><div className="deco-card deco-two"><span>gasto em comida</span><strong>R$ 487,20</strong><small>este mês</small></div></div></div>; }
+function NavButton({ active, icon, label, onClick }: { active: boolean; icon: ReactNode; label: string; onClick: () => void }) { return <button className={`nav-button ${active ? "active" : ""}`} onClick={onClick}>{icon}<span>{label}</span>{active && <span className="nav-active-dot" />}</button>; }
+function Metric({ icon, label, value, accent, note }: { icon: ReactNode; label: string; value: string; accent: string; note: string }) { return <div className="metric-card"><div className={`metric-icon ${accent}`}>{icon}</div><div><p>{label}</p><strong>{value}</strong><span>{note}</span></div></div>; }
+function EmptyPanel({ icon, title, body }: { icon: ReactNode; title: string; body: string }) { return <div className="empty-panel"><div className="empty-icon">{icon}</div><strong>{title}</strong><p>{body}</p></div>; }
+function TransactionRow({ item, onEdit, onDelete }: { item: Item; onEdit: () => void; onDelete: () => void }) { const income = item.kind === "income"; return <div className="transaction-row"><div className={`transaction-icon ${income ? "income" : "expense"}`}>{income ? <ArrowUpRight size={16} /> : <Receipt size={16} />}</div><div className="transaction-copy"><strong>{item.merchant || item.category}</strong><span>{item.category} · {shortDate(item.entryDate)}{item.isFixed ? " · fixo" : ""}</span></div><strong className={`transaction-amount ${income ? "income-text" : ""}`}>{income ? "+" : "-"}{money(item.amountCents)}</strong><button className="icon-button row-action" onClick={onEdit} aria-label="Editar lançamento"><Edit3 size={15} /></button><button className="icon-button row-action danger" onClick={onDelete} aria-label="Excluir lançamento"><Trash2 size={15} /></button></div>; }
+function ChatPanel({ messages, input, setInput, onSubmit }: { messages: Message[]; input: string; setInput: (value: string) => void; onSubmit: (event: FormEvent) => void }) { const suggestions = ["shopping 10", "recebi 2500 salário", "quanto gastei esse mês?"]; return <section className="chat-panel"><div className="chat-header"><div className="chat-title"><div className="chat-orb"><Sparkles size={17} /></div><div><strong>Seu copiloto financeiro</strong><span>funciona sem sair do celular</span></div></div></div><div className="chat-body">{!messages.length ? <div className="chat-welcome"><div className="welcome-mark"><MessageCircle size={24} /></div><h3>Me conta, o que aconteceu?</h3><p>Registre um gasto, uma receita ou pergunte sobre sua vida financeira.</p><div className="suggestion-list">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => setInput(suggestion)}>{suggestion}<ChevronRight size={14} /></button>)}</div></div> : <div className="message-list">{messages.map((message) => <div className={`message-row ${message.role === "user" ? "user-message" : "assistant-message"}`} key={message.id}><div className="message-avatar">{message.role === "user" ? "VC" : <Sparkles size={13} />}</div><div className="message-bubble">{message.content}</div></div>)}</div>}</div><form className="chat-composer" onSubmit={onSubmit}><textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ex.: mercado 120 no débito" rows={1} /><button type="submit" className="send-button" disabled={!input.trim()}><Send size={17} /></button></form></section>; }
+function TransactionsView({ items, onAdd, onEdit, onDelete }: { items: Item[]; onAdd: () => void; onEdit: (item: Item) => void; onDelete: (id: number) => void }) { return <section className="full-page"><div className="section-heading page-heading"><div><p className="eyebrow">Registro completo</p><h2>Todos os lançamentos</h2></div><button onClick={onAdd} className="primary-button"><Plus size={17} /> adicionar</button></div><div className="panel transaction-panel large-panel">{items.length ? items.map((item) => <TransactionRow key={item.id} item={item} onEdit={() => onEdit(item)} onDelete={() => onDelete(item.id)} />) : <EmptyPanel icon={<Receipt size={22} />} title="Sua lista está vazia" body="Use o chat ou adicione seu primeiro lançamento." />}</div><div className="info-strip"><div className="info-icon"><CircleDollarSign size={18} /></div><div><strong>Privacidade por padrão</strong><p>Este aparelho guarda seus dados no navegador. Outra pessoa usando outro celular terá uma agenda separada.</p></div></div></section>; }
+function SettingsView({ profile, onSave }: { profile: Profile; onSave: (profile: Profile) => void }) { const [income, setIncome] = useState((profile.monthlyIncomeCents / 100).toFixed(2).replace(".", ",")); const [goal, setGoal] = useState((profile.savingsGoalCents / 100).toFixed(2).replace(".", ",")); return <section className="full-page settings-page"><div className="section-heading page-heading"><div><p className="eyebrow">Seu espaço financeiro</p><h2>Configurações simples</h2></div></div><div className="settings-grid"><form className="panel settings-card" onSubmit={(event) => { event.preventDefault(); onSave({ monthlyIncomeCents: parseMoney(income), savingsGoalCents: parseMoney(goal) }); }}><div className="settings-card-title"><div className="metric-icon green"><WalletCards size={18} /></div><div><h3>Seu ponto de partida</h3><p>Valores salvos somente neste celular.</p></div></div><label><span>Renda mensal</span><div className="input-with-prefix"><small>R$</small><input value={income} onChange={(event) => setIncome(event.target.value)} placeholder="0,00" /></div></label><label><span>Meta de economia mensal</span><div className="input-with-prefix"><small>R$</small><input value={goal} onChange={(event) => setGoal(event.target.value)} placeholder="0,00" /></div></label><button type="submit" className="primary-button"><Check size={16} /> salvar informações</button></form><div className="panel settings-card"><div className="settings-card-title"><div className="metric-icon purple"><CreditCard size={18} /></div><div><h3>Armazenamento</h3><p>Sem login, sem nuvem e sem compartilhamento.</p></div></div><div className="method-placeholder"><CreditCard size={17} /><span>Use “Pix”, “cartão” ou “dinheiro” no chat para deixar as anotações mais claras.</span></div></div></div></section>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) { return <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="modal-card"><div className="modal-header"><h2>{title}</h2><button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button></div>{children}</div></div>; }
+function EditItemModal({ item, onClose, onSave }: { item: Item; onClose: () => void; onSave: (item: Omit<Item, "id">) => void }) { return <ItemForm title="Editar lançamento" initial={item} onClose={onClose} onSave={onSave} />; }
+function AddItemModal({ onClose, onSave }: { onClose: () => void; onSave: (item: Omit<Item, "id">) => void }) { return <ItemForm title="Novo lançamento" initial={{ kind: "expense", amountCents: 0, merchant: "", category: "Outros", entryDate: today(), isFixed: false }} onClose={onClose} onSave={onSave} />; }
+function ItemForm({ title, initial, onClose, onSave }: { title: string; initial: Omit<Item, "id">; onClose: () => void; onSave: (item: Omit<Item, "id">) => void }) { const [item, setItem] = useState(initial); const [amount, setAmount] = useState(initial.amountCents ? (initial.amountCents / 100).toFixed(2).replace(".", ",") : ""); return <Modal title={title} onClose={onClose}><form className="modal-form" onSubmit={(event) => { event.preventDefault(); if (!item.merchant.trim() || !parseMoney(amount)) return; onSave({ ...item, amountCents: parseMoney(amount) }); }}><div className="segmented-control">{([["expense", "Despesa"], ["income", "Receita"], ["bill", "Conta"]] as [Kind, string][]).map(([value, label]) => <button type="button" key={value} className={item.kind === value ? "selected" : ""} onClick={() => setItem({ ...item, kind: value })}>{label}</button>)}</div><label><span>Nome</span><input value={item.merchant} onChange={(event) => setItem({ ...item, merchant: event.target.value })} placeholder="Ex.: Mercado" required /></label><label><span>Categoria</span><select value={item.category} onChange={(event) => setItem({ ...item, category: event.target.value })}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label><div className="form-row"><label><span>Valor</span><div className="input-with-prefix"><small>R$</small><input value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0,00" required /></div></label><label><span>Data</span><input type="date" value={item.entryDate} onChange={(event) => setItem({ ...item, entryDate: event.target.value })} required /></label></div><label className="checkbox-line"><input type="checkbox" checked={item.isFixed} onChange={(event) => setItem({ ...item, isFixed: event.target.checked })} /><span>É fixo ou recorrente</span></label><div className="modal-actions"><button type="button" className="outline-button" onClick={onClose}>cancelar</button><button type="submit" className="primary-button">salvar</button></div></form></Modal>; }
