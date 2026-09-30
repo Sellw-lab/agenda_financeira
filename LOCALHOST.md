@@ -12,4 +12,8 @@ Abra `http://127.0.0.1:3000`.
 
 O servidor local escuta somente em `127.0.0.1`, portanto não fica disponível para outros computadores da rede. Para usar outro banco, configure `DATABASE_URL` no ambiente antes de iniciar.
 
+## Persistência
+
+Os lançamentos, perfil, conversas e meios de pagamento são gravados no banco antes de a ação ser considerada concluída. Fechar o navegador, parar o servidor ou sair da sessão não apaga nada. Ao reiniciar, a identidade `local-host-owner` é reutilizada para reencontrar os mesmos dados.
+
 O modo local não deve ser publicado em um domínio público sem adicionar uma autenticação própria.
