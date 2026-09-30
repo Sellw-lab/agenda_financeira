@@ -77,6 +77,8 @@ type EditItem = {
 
 export default function Home() {
   const { user, loading, logout } = useAuth();
+  const isLocalHost = typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
   const [view, setView] = useState<View>("overview");
   const [chatInput, setChatInput] = useState("");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -131,6 +133,9 @@ export default function Home() {
   }, []);
 
   if (loading) return <LoadingScreen />;
+  // Local installations use the server-created local-host-owner identity and
+  // must never send the user through the Manus login screen.
+  if (!user && isLocalHost) return <LocalModeUnavailable />;
   if (!user) return <LoginScreen />;
 
   const data = dashboard.data;
@@ -296,4 +301,5 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 function LoadingScreen() { return <div className="center-screen"><Loader2 className="spin" size={28} /><span>abrindo seu espaço financeiro…</span></div>; }
+function LocalModeUnavailable() { return <div className="center-screen"><Loader2 className="spin" size={28} /><span>iniciando sua agenda local…</span><small>Verifique se o servidor foi iniciado com <code>pnpm dev:local</code>.</small></div>; }
 function LoginScreen() { return <div className="login-screen"><div className="login-card"><img src="/bolso-claro-logo.svg" alt="Bolso Claro" className="login-logo" /><p className="eyebrow">sua agenda financeira</p><h1>Entenda seu dinheiro<br /><em>sem complicar.</em></h1><p className="login-copy">Registre seus gastos do jeito que você fala e veja tudo tomar forma.</p><Button onClick={() => startLogin()} className="primary-button login-button">entrar na minha agenda <ChevronRight size={17} /></Button><p className="login-footnote">Acesso seguro pela sua conta Manus.</p></div><div className="login-decoration"><div className="deco-card deco-one"><span>saldo previsto</span><strong>R$ 3.240,00</strong></div><div className="deco-card deco-two"><span>gasto em comida</span><strong>R$ 487,20</strong><small>este mês</small></div></div></div>; }

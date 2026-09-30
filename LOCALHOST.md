@@ -21,9 +21,9 @@ O script instala dependências, pede a `DATABASE_URL` diretamente no computador,
 pnpm dev:local
 ```
 
-Abra `http://127.0.0.1:3000`.
+Abra `http://localhost:3000`.
 
-O servidor local escuta somente em `127.0.0.1`, portanto não fica disponível para outros computadores da rede. Para usar outro banco, configure `DATABASE_URL` no ambiente antes de iniciar.
+O servidor local escuta somente no próprio dispositivo (`127.0.0.1`), portanto não fica disponível para outros computadores da rede. A agenda entra diretamente no sistema sem tela de login OAuth. Para usar outro banco, configure `DATABASE_URL` no ambiente antes de iniciar.
 
 ## Persistência
 
