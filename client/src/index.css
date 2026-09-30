@@ -259,3 +259,7 @@ h3 { color: #29453b; }
   .message-list { gap: 11px; }
   .message-bubble { max-width: 88%; font-size: 12px; }
 }
+.savings-list { display: grid; gap: 8px; padding-top: 3px; color: #60786a; font-size: 11px; }
+.savings-list > strong { color: #476657; font-size: 12px; }
+.savings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; color: #668074; background: #f3f6f1; border: 1px solid #e0e9df; border-radius: 8px; }
+.savings-row strong { color: #416a5a; }
