@@ -1996,3 +1996,61 @@ h3 {
     margin: 0;
   }
 }
+.transaction-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: -3px 0 14px;
+}
+.transaction-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 31px;
+  padding: 0 11px;
+  color: #789087;
+  background: #eef2eb;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  text-transform: capitalize;
+}
+.transaction-filters button:hover {
+  color: #416a5a;
+  border-color: #c6d8c8;
+}
+.transaction-filters button.active {
+  color: #fffdf8;
+  background: #416a5a;
+}
+.transaction-filters span {
+  min-width: 17px;
+  padding: 2px 5px;
+  color: #789087;
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 99px;
+  font-size: 9px;
+  text-align: center;
+}
+.transaction-filters button.active span {
+  color: #416a5a;
+  background: #e5eee3;
+}
+.dark-mode .transaction-filters button {
+  color: #b4c7b8;
+  background: #294238;
+  border-color: #3a5345;
+}
+.dark-mode .transaction-filters button.active {
+  color: #fffdf8;
+  background: #568268;
+}
+@media (max-width: 480px) {
+  .transaction-filters {
+    gap: 6px;
+  }
+  .transaction-filters button {
+    flex: 1 1 calc(50% - 6px);
+    justify-content: center;
+  }
+}

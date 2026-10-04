@@ -980,7 +980,7 @@ export default function Home() {
         )}
         {view === "transactions" && (
           <TransactionsView
-            items={filteredItems}
+            items={items}
             search={search}
             onSearch={setSearch}
             onAdd={() => setAddOpen(true)}
@@ -1301,12 +1301,49 @@ function TransactionsView({
   onEdit: (item: Item) => void;
   onDelete: (id: number) => void;
 }) {
+  const [filter, setFilter] = useState<
+    "all" | "expenses" | "income" | "future"
+  >("all");
+  const todayValue = today();
+  const visibleItems = items
+    .filter(item =>
+      `${item.merchant} ${item.category} ${item.paymentMethod || ""}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    )
+    .filter(item => {
+      if (filter === "expenses") return item.kind !== "income";
+      if (filter === "income") return item.kind === "income";
+      if (filter === "future")
+        return item.entryDate > todayValue || Boolean(item.isPlanned);
+      return true;
+    })
+    .sort((a, b) => {
+      const aFuture = a.entryDate > todayValue || Boolean(a.isPlanned);
+      const bFuture = b.entryDate > todayValue || Boolean(b.isPlanned);
+      if (filter === "all" && aFuture !== bFuture) return aFuture ? 1 : -1;
+      return b.entryDate.localeCompare(a.entryDate) || b.id - a.id;
+    });
+  const filters = [
+    ["all", "todos"],
+    ["expenses", "despesas"],
+    ["income", "receitas"],
+    ["future", "futuros"],
+  ] as const;
   return (
     <section className="full-page">
       <div className="section-heading page-heading">
         <div>
           <p className="eyebrow">Registro completo</p>
-          <h2>Todos os lançamentos</h2>
+          <h2>
+            {filter === "all"
+              ? "Todos os lançamentos"
+              : filter === "expenses"
+                ? "Despesas"
+                : filter === "income"
+                  ? "Receitas"
+                  : "Lançamentos futuros"}
+          </h2>
         </div>
         <button onClick={onAdd} className="primary-button">
           <Plus size={17} /> adicionar
@@ -1320,9 +1357,32 @@ function TransactionsView({
           placeholder="Buscar por nome, categoria ou pagamento"
         />
       </div>
+      <div className="transaction-filters" aria-label="Filtrar lançamentos">
+        {filters.map(([value, label]) => (
+          <button
+            key={value}
+            className={filter === value ? "active" : ""}
+            onClick={() => setFilter(value)}
+          >
+            {label}
+            <span>
+              {value === "all"
+                ? items.length
+                : value === "expenses"
+                  ? items.filter(item => item.kind !== "income").length
+                  : value === "income"
+                    ? items.filter(item => item.kind === "income").length
+                    : items.filter(
+                        item =>
+                          item.entryDate > todayValue || Boolean(item.isPlanned)
+                      ).length}
+            </span>
+          </button>
+        ))}
+      </div>
       <div className="panel transaction-panel large-panel">
-        {items.length ? (
-          items.map(item => (
+        {visibleItems.length ? (
+          visibleItems.map(item => (
             <TransactionRow
               key={item.id}
               item={item}
