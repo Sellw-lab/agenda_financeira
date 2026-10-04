@@ -49,6 +49,7 @@ type Item = {
   paymentMethod?: string;
   isPlanned?: boolean;
   scheduledDay?: number;
+  endOfMonth?: boolean;
 };
 type Message = { id: number; role: "user" | "assistant"; content: string };
 type SavingsEdit = { name: string; amountCents: number } | null;
@@ -83,7 +84,12 @@ type Profile = {
   monthlyIncomeCents: number;
   savingsGoalCents: number;
   incomeByMonth?: Record<string, number>;
-  salarySchedule?: { amountCents: number; day: number; nextDue: string };
+  salarySchedule?: {
+    amountCents: number;
+    day: number;
+    nextDue: string;
+    endOfMonth?: boolean;
+  };
   savingsAccounts?: Record<string, number>;
   savingsEntries?: Array<{
     id: number;
@@ -172,6 +178,20 @@ function nextMonthDate(value: string, day: number) {
   date.setDate(Math.min(day, lastDay));
   return dateKey(date);
 }
+function salaryEndOfMonthDate(reference: string) {
+  const referenceDate = new Date(`${reference}T12:00:00`);
+  const currentLastDay = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    0,
+    12
+  );
+  if (referenceDate.getDate() <= currentLastDay.getDate())
+    return dateKey(currentLastDay);
+  return dateKey(
+    new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 2, 0, 12)
+  );
+}
 function scheduleFromText(text: string) {
   const lower = text.toLowerCase();
   if (lower.includes("depois de amanhã") || lower.includes("depois de amanha"))
@@ -179,12 +199,28 @@ function scheduleFromText(text: string) {
       entryDate: localDate(2),
       isPlanned: true,
       scheduledDay: undefined,
+      endOfMonth: false,
     };
   if (lower.includes("amanhã") || lower.includes("amanha"))
     return {
       entryDate: localDate(1),
       isPlanned: true,
       scheduledDay: undefined,
+      endOfMonth: false,
+    };
+  if (
+    lower.includes("final do mês") ||
+    lower.includes("final do mes") ||
+    lower.includes("fim do mês") ||
+    lower.includes("fim do mes") ||
+    lower.includes("último dia") ||
+    lower.includes("ultimo dia")
+  )
+    return {
+      entryDate: salaryEndOfMonthDate(today()),
+      isPlanned: true,
+      scheduledDay: undefined,
+      endOfMonth: true,
     };
   const dateMatch = lower.match(/\b(?:dia|em)\s*(\d{1,2})(?:\/(\d{1,2}))?\b/);
   if (dateMatch) {
@@ -205,9 +241,15 @@ function scheduleFromText(text: string) {
       entryDate: dateKey(date),
       isPlanned: true,
       scheduledDay: requestedDay,
+      endOfMonth: false,
     };
   }
-  return { entryDate: today(), isPlanned: false, scheduledDay: undefined };
+  return {
+    entryDate: today(),
+    isPlanned: false,
+    scheduledDay: undefined,
+    endOfMonth: false,
+  };
 }
 function money(cents = 0) {
   return (cents / 100).toLocaleString("pt-BR", {
@@ -384,6 +426,7 @@ function parseText(text: string): Omit<Item, "id"> | null {
       schedule.isPlanned ||
       /\b(recebo|vai cair|previsto|prevista)\b/.test(lower),
     scheduledDay: schedule.scheduledDay,
+    endOfMonth: schedule.endOfMonth,
   };
 }
 
@@ -427,7 +470,9 @@ export default function Home() {
         incomeByMonth,
         salarySchedule: {
           ...schedule,
-          nextDue: nextMonthDate(schedule.nextDue, schedule.day),
+          nextDue: schedule.endOfMonth
+            ? nextMonthDate(schedule.nextDue, 31)
+            : nextMonthDate(schedule.nextDue, schedule.day),
         },
       };
     });
@@ -467,7 +512,10 @@ export default function Home() {
     .reduce((sum, entry) => sum + entry.amountCents, 0);
   const monthBalance = totals.income - totals.expense - savingsThisMonth;
   const hasMonthActivity =
-    actualTotals.expense > 0 || actualTotals.income > 0 || savingsThisMonth > 0;
+    actualTotals.expense > 0 ||
+    actualTotals.income > 0 ||
+    savingsThisMonth > 0 ||
+    monthIncome > 0;
   const monthStatus =
     isMonthClosing() &&
     hasMonthActivity &&
@@ -627,7 +675,7 @@ export default function Home() {
     else if (parsed) {
       const isSalarySchedule =
         parsed.kind === "income" &&
-        parsed.scheduledDay &&
+        (parsed.scheduledDay || parsed.endOfMonth) &&
         /\b(salário|salario)\b/i.test(text);
       if (isSalarySchedule) {
         setProfile(current => ({
@@ -639,11 +687,14 @@ export default function Home() {
           },
           salarySchedule: {
             amountCents: parsed.amountCents,
-            day: parsed.scheduledDay!,
+            day: parsed.scheduledDay || 31,
             nextDue: parsed.entryDate,
+            endOfMonth: parsed.endOfMonth,
           },
         }));
-        reply = `Salário agendado: ${money(parsed.amountCents)} todo dia ${parsed.scheduledDay}. O valor entra automaticamente na renda quando chegar a data prevista.`;
+        reply = parsed.endOfMonth
+          ? `Salário agendado: ${money(parsed.amountCents)} no último dia de cada mês. No dia 30 ou 31 (ou no último dia de fevereiro), ele entra automaticamente na renda e fecha o mês.`
+          : `Salário agendado: ${money(parsed.amountCents)} todo dia ${parsed.scheduledDay}. O valor entra automaticamente na renda quando chegar a data prevista.`;
       } else if (/\b(salário|salario)\b/i.test(text)) {
         setProfile(current => ({
           ...current,
