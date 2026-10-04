@@ -148,6 +148,18 @@ function dateLabel(value: string) {
 function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
+function addMonths(value: string, months: number) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(1);
+  date.setMonth(date.getMonth() + months);
+  const lastDay = new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0
+  ).getDate();
+  date.setDate(Math.min(new Date(`${value}T12:00:00`).getDate(), lastDay));
+  return dateKey(date);
+}
 function nextMonthDate(value: string, day: number) {
   const date = new Date(`${value}T12:00:00`);
   date.setDate(1);
@@ -931,6 +943,15 @@ export default function Home() {
           <ToolsView
             items={items}
             profile={profile}
+            onAddItems={newItems =>
+              setItems(current => [
+                ...newItems.map(item => ({
+                  ...item,
+                  id: Date.now() + Math.random(),
+                })),
+                ...current,
+              ])
+            }
             onProfileChange={updateProfile}
             onImport={importData}
             onExport={exportData}
@@ -1284,12 +1305,14 @@ function TransactionsView({
 function ToolsView({
   items,
   profile,
+  onAddItems,
   onProfileChange,
   onImport,
   onExport,
 }: {
   items: Item[];
   profile: Profile;
+  onAddItems: (items: Omit<Item, "id">[]) => void;
   onProfileChange: (patch: Partial<Profile>) => void;
   onImport: (data: {
     items?: Item[];
@@ -1313,6 +1336,14 @@ function ToolsView({
   const [transferFrom, setTransferFrom] = useState("");
   const [transferTo, setTransferTo] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
+  const [installmentName, setInstallmentName] = useState("");
+  const [installmentTotal, setInstallmentTotal] = useState("");
+  const [installmentCount, setInstallmentCount] = useState("");
+  const [installmentStart, setInstallmentStart] = useState(today());
+  const [financeName, setFinanceName] = useState("");
+  const [financeAmount, setFinanceAmount] = useState("");
+  const [financeCount, setFinanceCount] = useState("");
+  const [financeStart, setFinanceStart] = useState(today());
   const month = currentMonthKey();
   const expenses = items.filter(
     item => item.entryDate.slice(0, 7) === month && item.kind !== "income"
@@ -1430,6 +1461,68 @@ function ToolsView({
       ],
     });
     setTransferAmount("");
+  };
+  const generateSchedule = (
+    name: string,
+    amountCents: number,
+    count: number,
+    start: string,
+    category: string,
+    paymentMethod?: string
+  ) =>
+    Array.from({ length: count }, (_, index) => ({
+      kind: "bill" as const,
+      amountCents,
+      merchant: `${name} · ${index + 1}/${count}`,
+      category,
+      entryDate: addMonths(start, index),
+      isFixed: true,
+      paymentMethod,
+      isPlanned: addMonths(start, index) > today(),
+    }));
+  const saveInstallment = (event: FormEvent) => {
+    event.preventDefault();
+    const count = Math.max(1, Math.min(120, Number(installmentCount)));
+    const total = parseMoney(installmentTotal);
+    if (!installmentName.trim() || !count || !total || !installmentStart)
+      return;
+    const base = Math.floor(total / count);
+    const remainder = total - base * count;
+    onAddItems(
+      generateSchedule(
+        installmentName.trim(),
+        base,
+        count,
+        installmentStart,
+        "Outros",
+        "Crédito"
+      ).map((item, index) => ({
+        ...item,
+        amountCents: index === count - 1 ? base + remainder : base,
+      }))
+    );
+    setInstallmentName("");
+    setInstallmentTotal("");
+    setInstallmentCount("");
+  };
+  const saveFinance = (event: FormEvent) => {
+    event.preventDefault();
+    const count = Math.max(1, Math.min(360, Number(financeCount)));
+    const amount = parseMoney(financeAmount);
+    if (!financeName.trim() || !count || !amount || !financeStart) return;
+    onAddItems(
+      generateSchedule(
+        financeName.trim(),
+        amount,
+        count,
+        financeStart,
+        "Moradia",
+        "Financiamento"
+      )
+    );
+    setFinanceName("");
+    setFinanceAmount("");
+    setFinanceCount("");
   };
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1722,6 +1815,84 @@ function ToolsView({
               Crie pelo menos duas poupanças para transferir valores entre elas.
             </p>
           )}
+        </div>
+        <div className="panel tool-card tool-wide">
+          <div className="tool-card-title">
+            <Receipt size={18} />
+            <div>
+              <h3>Compra parcelada</h3>
+              <p>
+                Cadastre o presente ou compra do cartão e gere todas as
+                parcelas.
+              </p>
+            </div>
+          </div>
+          <form className="compact-form" onSubmit={saveInstallment}>
+            <input
+              value={installmentName}
+              onChange={event => setInstallmentName(event.target.value)}
+              placeholder="Nome da compra"
+            />
+            <input
+              value={installmentTotal}
+              onChange={event => setInstallmentTotal(event.target.value)}
+              placeholder="Valor total (R$)"
+              inputMode="decimal"
+            />
+            <input
+              value={installmentCount}
+              onChange={event => setInstallmentCount(event.target.value)}
+              placeholder="Nº de parcelas"
+              inputMode="numeric"
+            />
+            <input
+              type="date"
+              value={installmentStart}
+              onChange={event => setInstallmentStart(event.target.value)}
+            />
+            <button className="primary-button" type="submit">
+              <Plus size={15} /> gerar parcelas
+            </button>
+          </form>
+        </div>
+        <div className="panel tool-card tool-wide">
+          <div className="tool-card-title">
+            <CreditCard size={18} />
+            <div>
+              <h3>Financiamento</h3>
+              <p>
+                Registre sua moto ou outro financiamento e projete as parcelas
+                mensais.
+              </p>
+            </div>
+          </div>
+          <form className="compact-form" onSubmit={saveFinance}>
+            <input
+              value={financeName}
+              onChange={event => setFinanceName(event.target.value)}
+              placeholder="Nome do financiamento"
+            />
+            <input
+              value={financeAmount}
+              onChange={event => setFinanceAmount(event.target.value)}
+              placeholder="Valor da parcela (R$)"
+              inputMode="decimal"
+            />
+            <input
+              value={financeCount}
+              onChange={event => setFinanceCount(event.target.value)}
+              placeholder="Nº de parcelas"
+              inputMode="numeric"
+            />
+            <input
+              type="date"
+              value={financeStart}
+              onChange={event => setFinanceStart(event.target.value)}
+            />
+            <button className="primary-button" type="submit">
+              <Plus size={15} /> gerar financiamento
+            </button>
+          </form>
         </div>
         <div className="panel tool-card">
           <div className="tool-card-title">
