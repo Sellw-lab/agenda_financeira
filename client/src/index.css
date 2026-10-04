@@ -2054,3 +2054,145 @@ h3 {
     justify-content: center;
   }
 }
+.balance-transfer-card {
+  display: grid;
+  gap: 13px;
+  margin-top: 14px;
+  padding: 18px;
+  background: #fffdf8;
+  border: 1px solid #e1e8df;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(65, 106, 90, 0.06);
+}
+.balance-transfer-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+.transfer-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 35px;
+  height: 35px;
+  color: #4f8767;
+  background: #e2f0e3;
+  border-radius: 11px;
+}
+.balance-transfer-heading h3 {
+  margin: 0 0 4px;
+  color: #315445;
+  font-size: 14px;
+}
+.balance-transfer-heading p:not(.eyebrow) {
+  margin: 0;
+  color: #86958c;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.balance-transfer-heading .eyebrow {
+  margin-bottom: 4px;
+}
+.balance-transfer-form {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr auto;
+  gap: 8px;
+}
+.balance-transfer-form select,
+.balance-transfer-input {
+  min-height: 38px;
+  padding: 0 10px;
+  color: #536f60;
+  background: #fbfcf8;
+  border: 1px solid #dfe7de;
+  border-radius: 9px;
+  font-size: 11px;
+}
+.balance-transfer-input {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.balance-transfer-input span {
+  color: #7f9487;
+  font-size: 10px;
+}
+.balance-transfer-input input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  color: #536f60;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 11px;
+}
+.balance-transfer-form .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 13px;
+  white-space: nowrap;
+}
+.balance-transfer-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 10px 11px;
+  color: #71877a;
+  background: #f1f5ef;
+  border-radius: 9px;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.balance-transfer-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #5b9773;
+}
+.dark-mode .balance-transfer-card {
+  background: #22342b;
+  border-color: #385242;
+  box-shadow: none;
+}
+.dark-mode .transfer-icon {
+  color: #c4dfc6;
+  background: #294638;
+}
+.dark-mode .balance-transfer-heading h3 {
+  color: #e7efe7;
+}
+.dark-mode .balance-transfer-heading p:not(.eyebrow) {
+  color: #a8bbaa;
+}
+.dark-mode .balance-transfer-form select,
+.dark-mode .balance-transfer-input {
+  color: #c1d4c3;
+  background: #1b2a23;
+  border-color: #46604e;
+}
+.dark-mode .balance-transfer-input input {
+  color: #c1d4c3;
+}
+.dark-mode .balance-transfer-note {
+  color: #b0c6b3;
+  background: #1d2d25;
+}
+@media (max-width: 760px) {
+  .balance-transfer-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .balance-transfer-form .primary-button {
+    grid-column: 1 / -1;
+    min-height: 38px;
+  }
+}
+@media (max-width: 480px) {
+  .balance-transfer-form {
+    grid-template-columns: 1fr;
+  }
+  .balance-transfer-form .primary-button {
+    grid-column: auto;
+  }
+}

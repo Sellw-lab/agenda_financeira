@@ -1,11 +1,13 @@
 import {
   ArrowDownLeft,
+  ArrowRightLeft,
   ArrowUpRight,
   BarChart3,
   Bell,
   Check,
   ChevronRight,
   CircleAlert,
+  CheckCircle2,
   CircleDollarSign,
   CalendarDays,
   CreditCard,
@@ -459,6 +461,8 @@ export default function Home() {
     id: number;
     merchant: string;
   } | null>(null);
+  const [balanceTransferFrom, setBalanceTransferFrom] = useState("");
+  const [balanceTransferAmount, setBalanceTransferAmount] = useState("");
   useEffect(
     () => saveStore({ items, messages, profile }),
     [items, messages, profile]
@@ -517,6 +521,7 @@ export default function Home() {
   const savingsThisMonth = (profile.savingsEntries || [])
     .filter(entry => entry.entryDate.slice(0, 7) === currentMonthKey())
     .reduce((sum, entry) => sum + entry.amountCents, 0);
+  const savingsAccounts = Object.entries(profile.savingsAccounts || {});
   const monthBalance = totals.income - totals.expense - savingsThisMonth;
   const hasMonthActivity =
     actualTotals.expense > 0 ||
@@ -671,6 +676,31 @@ export default function Home() {
       return { ...current, savingsAccounts: accounts, savingsEntries: entries };
     });
     setSavingsEdit(null);
+  }
+  function transferToBalance(event: FormEvent) {
+    event.preventDefault();
+    const amount = parseMoney(balanceTransferAmount);
+    const available = profile.savingsAccounts?.[balanceTransferFrom] || 0;
+    if (!balanceTransferFrom || !amount || amount > available) return;
+    setProfile(current => {
+      const accounts = { ...(current.savingsAccounts || {}) };
+      accounts[balanceTransferFrom] =
+        (accounts[balanceTransferFrom] || 0) - amount;
+      return {
+        ...current,
+        savingsAccounts: accounts,
+        savingsEntries: [
+          ...(current.savingsEntries || []),
+          {
+            id: Date.now(),
+            name: `${balanceTransferFrom} → saldo do mês`,
+            amountCents: -amount,
+            entryDate: today(),
+          },
+        ],
+      };
+    });
+    setBalanceTransferAmount("");
   }
   function sendChat(event: FormEvent) {
     event.preventDefault();
@@ -939,6 +969,67 @@ export default function Home() {
                   </span>
                 </div>
               </div>
+              <section className="balance-transfer-card">
+                <div className="balance-transfer-heading">
+                  <div className="transfer-icon">
+                    <ArrowRightLeft size={18} />
+                  </div>
+                  <div>
+                    <p className="eyebrow">Ajuste do mês</p>
+                    <h3>Transferir para o saldo previsto</h3>
+                    <p>
+                      Use uma parte da poupança para cobrir este mês sem perder
+                      o histórico.
+                    </p>
+                  </div>
+                </div>
+                {savingsAccounts.length ? (
+                  <form
+                    className="balance-transfer-form"
+                    onSubmit={transferToBalance}
+                  >
+                    <select
+                      value={balanceTransferFrom}
+                      onChange={event =>
+                        setBalanceTransferFrom(event.target.value)
+                      }
+                    >
+                      <option value="">De qual poupança?</option>
+                      {savingsAccounts.map(([account, amount]) => (
+                        <option key={account} value={account}>
+                          {account} · {money(amount)}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="balance-transfer-input">
+                      <span>R$</span>
+                      <input
+                        value={balanceTransferAmount}
+                        onChange={event =>
+                          setBalanceTransferAmount(event.target.value)
+                        }
+                        placeholder="Valor da transferência"
+                        inputMode="decimal"
+                      />
+                    </div>
+                    <button className="primary-button" type="submit">
+                      <ArrowRightLeft size={15} /> transferir para o mês
+                    </button>
+                  </form>
+                ) : (
+                  <p className="empty-copy">
+                    Crie uma poupança para poder transferir parte dela para o
+                    saldo do mês.
+                  </p>
+                )}
+                <div className="balance-transfer-note">
+                  <CheckCircle2 size={15} />
+                  <span>
+                    O valor será somado ao saldo previsto de {monthLabel()} e
+                    retirado da poupança escolhida.
+                  </span>
+                </div>
+              </section>
               <div className="metrics-grid">
                 <Metric
                   icon={<ArrowUpRight size={17} />}
