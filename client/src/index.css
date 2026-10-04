@@ -263,3 +263,23 @@ h3 { color: #29453b; }
 .savings-list > strong { color: #476657; font-size: 12px; }
 .savings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; color: #668074; background: #f3f6f1; border: 1px solid #e0e9df; border-radius: 8px; }
 .savings-row strong { color: #416a5a; }
+
+/* Savings editor and product roadmap */
+.savings-row button { margin-left: auto; opacity: 0; width: 28px; height: 28px; }
+.savings-row:hover button, .savings-row button:focus-visible { opacity: 1; }
+.savings-empty { color: #8b9a90; font-size: 10px; line-height: 1.5; }
+.form-hint { margin: -4px 0 2px; color: #829189; font-size: 11px; line-height: 1.5; }
+.savings-preview { display: grid; gap: 4px; padding: 13px 14px; color: #5c7568; background: #e8f2e7; border: 1px solid #d7e7d6; border-radius: 10px; }
+.savings-preview span { font-size: 10px; }
+.savings-preview strong { color: #416a5a; font-size: 22px; letter-spacing: -.04em; }
+.savings-preview.invalid { color: #9d5b4a; background: #fff0ea; border-color: #f0d8cf; }
+.savings-preview.invalid strong { color: #b36550; }
+.savings-preview small { font-size: 10px; }
+.secondary-button { min-height: 37px; padding: 0 12px; color: #668073; background: #eef2eb; border-radius: 9px; }
+.primary-button:disabled { cursor: not-allowed; opacity: .5; }
+.tool-ideas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 24px; }
+.tool-idea { display: flex; gap: 10px; padding: 14px; color: #638073; background: #fffdf8; border: 1px solid #e6e9e1; border-radius: 12px; }
+.tool-idea > svg { flex: 0 0 auto; margin-top: 2px; color: #789d83; }
+.tool-idea strong { color: #476657; font-size: 11px; }
+.tool-idea p { margin: 4px 0 0; color: #8b9990; font-size: 10px; line-height: 1.45; }
+@media (max-width: 560px) { .tool-ideas { grid-template-columns: 1fr; } .savings-row button { opacity: 1; } }
