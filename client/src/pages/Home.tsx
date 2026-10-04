@@ -676,21 +676,36 @@ export default function Home() {
     event.preventDefault();
     const text = chatInput.trim();
     if (!text) return;
-    if (/\b(desfazer|desfaza|estornar|corrigir|errei)\b/i.test(text)) {
-      if (lastChatItem) {
-        setItems(current =>
-          current.filter(item => item.id !== lastChatItem.id)
-        );
+    const undoMatch = text.match(
+      /\b(desfazer|desfaz|estornar|corrigir|errei)\b\s*(.*)$/i
+    );
+    if (undoMatch) {
+      const requested = undoMatch[2]
+        .replace(/^(a|o|um|uma)\s+(despesa|lançamento|lancamento)\s+/i, "")
+        .trim()
+        .toLowerCase();
+      const candidate = [...items]
+        .filter(item => item.kind !== "income")
+        .filter(item => {
+          if (!requested)
+            return lastChatItem ? item.id === lastChatItem.id : true;
+          return `${item.merchant} ${item.category} ${item.paymentMethod || ""}`
+            .toLowerCase()
+            .includes(requested);
+        })
+        .sort((a, b) => b.id - a.id)[0];
+      if (candidate) {
+        setItems(current => current.filter(item => item.id !== candidate.id));
         setMessages(current => [
           ...current,
           { id: Date.now(), role: "user", content: text },
           {
             id: Date.now() + 1,
             role: "assistant",
-            content: `Desfiz “${lastChatItem.merchant}”. O valor voltou para o saldo previsto do mês.`,
+            content: `Desfiz “${candidate.merchant}” de ${money(candidate.amountCents)}. O valor voltou para o saldo previsto do mês.`,
           },
         ]);
-        setLastChatItem(null);
+        if (lastChatItem?.id === candidate.id) setLastChatItem(null);
       } else {
         setMessages(current => [
           ...current,
@@ -698,7 +713,9 @@ export default function Home() {
           {
             id: Date.now() + 1,
             role: "assistant",
-            content: "Não encontrei uma despesa recente para desfazer.",
+            content: requested
+              ? `Não encontrei uma despesa com “${requested}”. Tente usar o nome, categoria ou parte do lançamento.`
+              : "Não encontrei uma despesa para desfazer.",
           },
         ]);
       }
