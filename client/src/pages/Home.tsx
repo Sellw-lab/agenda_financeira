@@ -452,6 +452,13 @@ export default function Home() {
   const [savingsEdit, setSavingsEdit] = useState<SavingsEdit>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [historyFilter, setHistoryFilter] = useState<
+    "all" | "expenses" | "income" | "future"
+  >("all");
+  const [lastChatItem, setLastChatItem] = useState<{
+    id: number;
+    merchant: string;
+  } | null>(null);
   useEffect(
     () => saveStore({ items, messages, profile }),
     [items, messages, profile]
@@ -587,17 +594,40 @@ export default function Home() {
       .toLowerCase()
       .includes(search.toLowerCase())
   );
+  const historyItems = recent
+    .filter(item => {
+      if (historyFilter === "expenses") return item.kind !== "income";
+      if (historyFilter === "income") return item.kind === "income";
+      if (historyFilter === "future")
+        return item.entryDate > today() || Boolean(item.isPlanned);
+      return true;
+    })
+    .sort((a, b) => {
+      const aFuture = a.entryDate > today() || Boolean(a.isPlanned);
+      const bFuture = b.entryDate > today() || Boolean(b.isPlanned);
+      if (historyFilter === "all" && aFuture !== bFuture)
+        return aFuture ? 1 : -1;
+      return b.entryDate.localeCompare(a.entryDate) || b.id - a.id;
+    });
+  const historyFilters = [
+    ["all", "todos"],
+    ["expenses", "despesas"],
+    ["income", "receitas"],
+    ["future", "futuros"],
+  ] as const;
   function addItem(item: Omit<Item, "id">) {
+    const id = Date.now();
     setItems(current => [
       {
         ...item,
         isPlanned:
           item.isPlanned || item.entryDate > today() || item.kind === "bill",
-        id: Date.now(),
+        id,
       },
       ...current,
     ]);
     setAddOpen(false);
+    return id;
   }
   function updateItem(changes: Omit<Item, "id">) {
     if (!editItem) return;
@@ -646,6 +676,36 @@ export default function Home() {
     event.preventDefault();
     const text = chatInput.trim();
     if (!text) return;
+    if (/\b(desfazer|desfaza|estornar|corrigir|errei)\b/i.test(text)) {
+      if (lastChatItem) {
+        setItems(current =>
+          current.filter(item => item.id !== lastChatItem.id)
+        );
+        setMessages(current => [
+          ...current,
+          { id: Date.now(), role: "user", content: text },
+          {
+            id: Date.now() + 1,
+            role: "assistant",
+            content: `Desfiz “${lastChatItem.merchant}”. O valor voltou para o saldo previsto do mês.`,
+          },
+        ]);
+        setLastChatItem(null);
+      } else {
+        setMessages(current => [
+          ...current,
+          { id: Date.now(), role: "user", content: text },
+          {
+            id: Date.now() + 1,
+            role: "assistant",
+            content: "Não encontrei uma despesa recente para desfazer.",
+          },
+        ]);
+      }
+      setChatInput("");
+      setChatOpen(false);
+      return;
+    }
     const savings = parseSavingsText(text);
     const parsed = parseText(text);
     let reply =
@@ -706,8 +766,16 @@ export default function Home() {
         }));
         reply = `Renda de ${money(parsed.amountCents)} atualizada nas configurações para ${monthLabel()}.`;
       } else {
-        addItem(parsed);
+        const addedId = addItem(parsed);
+        if (parsed.kind !== "income")
+          setLastChatItem({ id: addedId, merchant: parsed.merchant });
+        else setLastChatItem(null);
         reply = `${parsed.kind === "income" ? (parsed.isPlanned ? "Receita prevista" : "Receita extra registrada") : parsed.kind === "bill" ? "Conta planejada" : "Gasto registrado"}: ${parsed.merchant} · ${money(parsed.amountCents)}${parsed.paymentMethod ? ` · ${parsed.paymentMethod}` : ""}${parsed.entryDate !== today() ? ` · para ${dateLabel(parsed.entryDate)}` : ""}.`;
+        if (parsed.kind === "income")
+          reply += ` O valor já foi somado ao saldo previsto de ${monthLabel()}.`;
+        else
+          reply +=
+            " Se foi um erro, digite “desfazer” para devolver o valor ao saldo.";
       }
     }
     setMessages(current => [
@@ -943,9 +1011,23 @@ export default function Home() {
                   <Plus size={18} />
                 </button>
               </div>
+              <div
+                className="transaction-filters history-filters"
+                aria-label="Filtrar histórico"
+              >
+                {historyFilters.map(([value, label]) => (
+                  <button
+                    key={value}
+                    className={historyFilter === value ? "active" : ""}
+                    onClick={() => setHistoryFilter(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <div className="panel transaction-panel">
-                {recent.length ? (
-                  recent
+                {historyItems.length ? (
+                  historyItems
                     .slice(0, 5)
                     .map(item => (
                       <TransactionRow
@@ -1194,6 +1276,8 @@ function ChatPanel({
 }) {
   const suggestions = [
     "Pix 10 shopping",
+    "recebi 500",
+    "desfazer",
     "salário 1654 dia 5",
     "quanto gastei esse mês?",
   ];
